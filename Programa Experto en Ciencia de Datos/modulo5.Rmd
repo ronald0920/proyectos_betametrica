@@ -1,0 +1,162 @@
+---
+title: "MODULO V: Modelos para segmentación y clasificación"
+author: "Ronald Llerena"
+date: "2024-08-11"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(openxlsx)
+library(cluster)
+library(devtools)
+library(factoextra)
+library(fpc)
+library(NbClust)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+data<- read.xlsx("D://Betametrica/MODULO V/bancos.xlsx")
+nombres<-data$BANCOS
+base<- as.data.frame(scale(data[,-1]))
+row.names(base) <- nombres
+```
+
+# Método de distancia: Euclidean y Manhattan
+```{r}
+cluster <- hclust(dist(base, method = "euclidean"),
+                  method = "ward.D")
+plot(cluster, hang=-0.01, cex=0.8)
+
+
+
+```
+
+ La figura anterior es un Dendrogram, es un cluster jerarquico, 
+ que enbloba todos los elementos de la tabla de la base de datos, 
+ una dentro de otros subgrupos y unos que quedan solitos por ejemplo 
+ BP CAPITAL y es superior a los demás cluster. Hay otro bloque que 
+ cluster por ejemplo el que va desde  BP MACHALA hasta BP GENERAL RUMIÑAHUI.
+ A continuación se mostrará otros cluster utilizando otros métodos. 
+
+```{r}
+cluster2 <-  hclust(dist(base, method = "euclidean"),
+                    method = "average")
+plot(cluster2, hang=-0.01, cex=0.8)
+
+cluster3 <-  hclust(dist(base, method = "manhattan"),
+                    method = "ward.D")
+plot(cluster3, hang=-0.01, cex=0.8)
+
+cluster4 <-  hclust(dist(base, method = "manhattan"),
+                    method = "average")
+plot(cluster4, hang=-0.01, cex=0.8)
+
+```
+
+Se presenta a continuación la  distancia se encuentra los elementos entre sí 
+
+```{r}
+
+
+distancia <- dist(base, method = "euclidean")
+distancia
+cluster$merge
+```
+
+Realizando cortes
+
+```{r}
+
+
+cutree(cluster, k=4)
+
+plot(cluster, hang= -0.01, cex=0.8)
+rect.hclust(cluster, k=4, border="red")
+
+grupos<- as.data.frame(cutree(cluster, k=4))
+
+
+
+ncluster <- diana(base, metric = "euclidean")
+
+par(mfrow=c(1,2))
+plot(ncluster)
+
+```
+
+ Las figuras anteriores tenemos un cluster jerárquico con una distancia eucladiana.
+ La otra figura es equivalente sino que la gráfica esta en barras.
+ Lo importante de estas gráficas es el divisive Coefficiente = 0.84
+ Este coeficiente esta comprendido entre -1 a 1 
+ Mientras mas cercano al valor de 1 mejor clasificados
+ estan los elementos. 
+
+
+# CLUSTER NO JERARQUITO
+
+```{r}
+cnj<- kmeans(base,4)
+cnj
+cnj$centers
+
+aggregate(base, by=list(cnj$cluster), FUN=mean)
+```
+
+A continuación se mostrara como se ven los grupos
+en un cluster no jerárquico
+
+
+```{r}
+fviz_cluster(cnj, data=base)
+require(cluster)
+clusplot(base, 
+         cnj$cluster,
+         color=T,
+         shade=T,
+         label=1,
+         line=2)
+
+```
+
+Procedimien para cuantos cluster son los óptimos
+
+
+```{r}
+clusteroptimo <- NbClust(base,
+                        distance = "euclidean",
+                        min.nc=2,
+                        max.nc=6,
+                        method = "ward.D",
+                        index="all")
+
+best_nc <- clusteroptimo$Best.nc
+print(best_nc)
+optimal_clusters <- as.numeric(names(which.max(table(best_nc[1, ]))))
+
+
+# Mostrar el número óptimo de clusters
+
+cat("El número óptimo de clusters es:", optimal_clusters, "\n")
+
+cnj2<-kmeans(base,4)
+
+silueta<- silhouette(cnj2$cluster,
+                     dist(base, method="euclidean"))
+
+fviz_silhouette(silueta)
+```
+
+
+Un Average Silhouette Width de 0.41 indica que:
+  
+Los clusters están razonablemente bien definidos, aunque no de manera perfecta.
+Algunos objetos pueden estar cerca de los bordes de sus clusters, 
+lo que sugiere que los clusters no son completamente distintos entre sí.
+Podría haber solapamientos entre los clusters, o algunos datos podrían estar mal asignados.
+
