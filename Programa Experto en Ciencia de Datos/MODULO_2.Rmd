@@ -2,7 +2,7 @@
 title: "MODULO II: Análisis Exploratorio de Datos y Automatización de Reportes"
 author: "Ronald Llerena"
 date: "2024-08-14"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
