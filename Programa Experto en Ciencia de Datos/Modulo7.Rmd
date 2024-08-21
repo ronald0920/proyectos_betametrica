@@ -1,0 +1,324 @@
+---
+title: "Modulo VII"
+author: "Ronald Llerena"
+date: "2024-08-21"
+output: github_document
+gfm:
+    always_allow_html: true
+knitr:
+  opts_chunk: 
+    screenshot.force: TRUE
+---
+
+```{r setup, include=FALSE}
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+install.packages("readxl")
+install.packages("openxlsx")
+install.packages("TSstudio")
+install.packages("urca")
+install.packages("tseries")
+install.packages("TSstudio")
+install.packages("lmtest")
+install.packages("highcharter")
+install.packages("stargazer")
+install.packages("forecast")
+install.packages("webshot")
+library(webshot)
+webshot::install_phantomjs()
+
+library(forecast)
+library(stargazer)
+
+library(highcharter)
+library(lmtest)
+library(TSstudio)
+library(tseries)
+library(urca)
+library(TSstudio)
+library(openxlsx)
+library(readxl)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+data <- read_xlsx("D:\\Betametrica\\MODULO VII\\Data.xlsx")
+View(data)
+```
+
+
+CONVERTIR UNA SERIE TEMPORAL
+```{r}
+ex <- ts(data[,2], start = c(2000, 1), end = c(2024, 1), freq = 4)
+ex
+```
+
+
+CONVERSIÓN DE SERIES DE TIEMPO EN LOGARITMOS - TASAS DE CRECIMIENTO
+
+  Generar los logaritmos de las series
+```{r}
+lex <- log(ex)
+lex
+
+
+```
+
+```{r}
+# Grafico de la serie original
+plot(ex, main="Exportaciones Originales", ylab="Exportaciones", xlab="Periodo")
+
+# Grafico de la serie en logaritmos
+plot(lex, main="Logaritmo de las Exportaciones", ylab="Log(Exportaciones)", xlab="Periodo")
+```
+
+
+
+La serie presenta varios picos y valles que indican fluctuaciones en las exportaciones .
+El año 2008, por ejemplo, muestra un pico alto seguido de una caída abrupta, lo que podría estar asociado con la crisis financiera global de ese año. Otro aspecto notable es el fuerte descenso en 2020, probablemente reflejando el impacto de la pandemia de COVID-19 en el comercio global. Después del descenso en 2020, la serie muestra una recuperación significativa, con las exportaciones alcanzando nuevos máximos en 2022 y 2023. Este repunte podría estar relacionado con la recuperación económica global y el aumento en la demanda de exportaciones.
+
+
+
+Generar los rezagos interanuales
+```{r}
+
+lexlag4 = stats::lag(lex, -4)
+lexlag4
+
+exlag4 = stats::lag(ex, -4)
+exlag4
+
+```
+
+Generar las tasas de crecimiento interanual
+
+```{r}
+
+tclex4 <- (lex - lexlag4) * 100
+tclex4
+
+tcex4 <- (ex / exlag4 - 1) * 100
+tcex4
+```
+
+ EXPORTAR LA DATA-
+```{r}
+datafinal <- cbind(ex, exlag4, tcex4, lex, tclex4)
+datafinal
+
+muestra1<-window(datafinal, start=c(2000,1), end=c(2024,1))
+muestra1
+
+
+```
+
+
+
+DIFERENCIAS-----------------------------------------------------------
+
+
+```{r}
+
+#.........Primera diferencia----------------------------------
+
+dtcltcb <- diff(tclex4)
+dex <- diff(ex)
+dlex <- diff(lex)
+dtclex4 <- diff(tclex4)
+
+#--------Segunda diferencia---------------------------------
+
+dtclx2 <- diff(tclex4, differences = 2)
+dex2 <- diff(ex, differences = 2)
+dlex2 <- diff(lex, differences = 2)
+```
+
+
+GRAFICOS--------------------------------------------------------------
+
+```{r}
+ 
+grafico1<-plot(dlex2)
+
+
+grafico2<-plot(dex2)
+
+# La gráfica en logarítmo en segunda diferencia se observa más estacional.
+# Nota importante: Se puede correr las diferencias necesarias, pero estadísticamente es mejor hasta segunda diferencia porque se piede datos 
+# A su vez la data cuenta con 97 observaciones
+
+```
+DESCOMPOSICIÓN DE LA SERIE----------------------
+
+```{r}
+
+  ts_decompose(dlex2)
+  # Una vez convertida la variable en segunda diferencia logarítmica, comprobada su estacionalidad con ADF
+  # se observa que las gráficas tienen tendencia y estacionalidad
+  
+
+```
+
+ ESTACIONARIEDAD DE LAS SERIES-----
+```{r}
+
+
+#---------Test Augmented Dickey-Fuller---------
+## sin constante ni tendencia
+
+adf1_ltp<-summary(ur.df(dlex2, lags=4))
+adf1_ltp
+
+
+#constante
+adf2_ltp<-summary(ur.df(dlex2, type="drift", lags=3))
+adf2_ltp
+
+
+##constante y tendencia
+adf3_ltp<-summary(ur.df(dlex2, type="trend", lags=3))
+adf3_ltp
+
+
+# A nivel no sale estacional en ninguno de las medidas ya sea en valores originales, logarítimicas y tasas de crecimiento
+# Se procede a calcular primera diferencia en tasa de crecimiento logaritmica, sale estacional pero no pasa las otras pruebas
+
+
+# Por primera diferencia en logaritmos la serie es estacional al aplicarse la prueva ADF, pero las siguientes pruebas de ajuste no logra superarlas
+# Se considera por segunda diferencia logarítmica de la variable exportaciones
+
+```
+
+DISEÑO DE LA MUESTRA
+```{r}
+
+
+
+estacionaria<-cbind (dlex2)
+estacionaria
+
+
+muestra_end<-window(estacionaria, start=c(2000,3), end=c(2024,1))
+muestra_end
+
+
+```
+
+
+IDENTIFICACÓN p, q
+```{r}
+ts_cor(muestra_end)
+
+ts_cor(muestra_end, lag=28)
+```
+
+MODELO ARIMA(p,d,q)---
+
+ESTIMACIÓN ARIMA-
+```{r}
+
+arima1<- arima(muestra_end,order=c(2,2,1), method = "ML")
+summary( arima1)
+
+
+#------Mostrar la significancia del pvalue del ARIMA(p,d,q)--------------
+
+coeftest(arima1)
+
+# De acuerdo al modelo seleccionado 2 autorregresivos y 1 media móvil todas las variables salen significativas 
+# con un p value menor al 5% y los errores estándares adecuados
+
+```
+
+
+
+```{r}
+#EVALUACIÓN DEL ARIMA------------------------------
+
+#------Residuos son ruido blanco---------------------------------
+residuals=resid(arima1)
+
+adf.test(residuals)
+# El valor negativo del ADF -7,57 indica que los residuos son estacionarios 
+
+# la prueba arroja un p value de 0.01, lo que significa que es bueno ya que han estacionariedad de los residuos
+# De esta forma se rechaza la H0 (que hay problemas de raiz y no estacionaridad) y aceptar la Ha el cual expresa que es estacionaria
+# Estos resultados indican que los datos se ajustan adecuadamente en el modelo ARIMA
+
+
+plot(residuals)
+
+
+
+## sin constante ni tendencia
+
+adf1_ltp<-summary(ur.df(residuals, lags=3))
+adf1_ltp
+
+
+
+#constante
+adf2_ltp<-summary(ur.df(residuals, type="drift", lags=3))
+adf2_ltp
+
+
+##constante y tendencia
+adf3_ltp<-summary(ur.df(residuals, type="trend", lags=3))
+adf3_ltp
+# En cada caso, se supera la prueba ADF
+```
+
+
+
+```{r}
+#------Normalidad de los resiudos--------------------------------
+
+
+jarque.bera.test(residuals(arima1))
+
+# Los resultados indican que el modelo no siguen una distribución normal, sin embargo ello no desmerece el modelo
+
+#Estabilidad ARIMA--------
+
+
+autoplot(arima1)
+# el resultado indica que el modelo es estable ya que se encuentran los puntos dentro del círculo en su inversa tanto para el componente ar y ma
+
+
+#####--Ljung-Box test----
+
+checkresiduals(arima1)
+# La prueba expresa que un p value menor al 5% expres problemas de autocorrelación residual
+# Puede ser necesario realizar ajustes adicionales como otra transformación de datos para mejorar el nivel de predicción
+# como p value es menor a 0.05 no se rechaza la Ho 
+
+
+##9.3.Proyección ARIMA-------------------------------
+
+prediccion1 <- forecast(arima1, h=4)
+summary(prediccion1)
+
+#--9.4.Graficar la proyecci?n---------------------------
+
+
+hchart(prediccion1)
+# La gráfica permite visualizar el modelo con los cuatro periodos de predicción
+
+#---ETAPA 10. RESUMEN DEL ARIMA----------------------------------
+
+
+
+stargazer(arima1, type="text")
+
+
+# Del resultado final tenemos un MAPE demasiado elevado.  El MAE indica que la predicción del modelo esta equivocada en 0.072 unidades
+# El MAE es aceptable, pero el MAPE hace generar dudas sobre la capacidad predicitiva del modelo. 
+# Tal vez para el tipo de datos, el modelo ARIMA hay que incorporar variables de control en el denominado ARIMAX
+
+
+
+
+  
+```
+
